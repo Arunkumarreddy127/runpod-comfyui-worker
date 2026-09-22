@@ -5,7 +5,7 @@ FROM runpod/worker-comfyui:5.10.0-base
 ENV COMFY_HOME=/workspace/runpod-slim/ComfyUI
 
 # Clone the bootstrap repository and install only the models declared by the
-# z-image-turbo-fp8-aio workflow manifest.
+# z-image-turbo-fp8-aio workflow manifest - removed z-image folder.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends git python3-pip yq \
 	&& python3 -m pip install --no-cache-dir --break-system-packages huggingface_hub \
