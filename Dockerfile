@@ -1,4 +1,4 @@
-FROM runpod/worker-comfyui:5.10.0-base
+FROM runpod/worker-comfyui:5.11.0-base
 
 # Tell the bootstrap installer where the base image keeps ComfyUI.
 ENV COMFY_HOME=/comfyui
