@@ -8,7 +8,7 @@ ARG COMFYUI_VERSION=latest
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends git python3-pip yq \
 	&& python3 -m pip install --no-cache-dir --break-system-packages huggingface_hub \
-	&& comfy --workspace="$COMFY_HOME" update comfy --version "$COMFYUI_VERSION" \
+	&& /usr/bin/yes | comfy --workspace "$COMFY_HOME" install --version "$COMFYUI_VERSION" --nvidia \
 	&& git clone --depth 1 https://github.com/Arunkumarreddy127/comfy-bootstrap.git /tmp/comfy-bootstrap \
 	&& cd /tmp/comfy-bootstrap \
 	&& ./workflow install qwen-image-2.1 \
