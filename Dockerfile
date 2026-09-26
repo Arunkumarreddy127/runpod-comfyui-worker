@@ -1,6 +1,6 @@
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
-ARG COMFYUI_VERSION=latest
+ARG COMFYUI_VERSION=v0.34.0
 
 ENV DEBIAN_FRONTEND=noninteractive \
 	COMFY_HOME=/comfyui \
