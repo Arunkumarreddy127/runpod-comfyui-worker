@@ -2,14 +2,13 @@ FROM runpod/worker-comfyui:5.10.0-base
 
 # Tell the bootstrap installer where the base image keeps ComfyUI.
 ENV COMFY_HOME=/comfyui
+ARG COMFYUI_VERSION=latest
 
 # Install dependencies for qwen-image-2.1
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends git python3-pip yq \
 	&& python3 -m pip install --no-cache-dir --break-system-packages huggingface_hub \
-	&& cd "$COMFY_HOME" \
-	&& git pull --ff-only \
-	&& python -m pip install --no-cache-dir -r requirements.txt \
+	&& comfy --workspace="$COMFY_HOME" update comfy --version "$COMFYUI_VERSION" \
 	&& git clone --depth 1 https://github.com/Arunkumarreddy127/comfy-bootstrap.git /tmp/comfy-bootstrap \
 	&& cd /tmp/comfy-bootstrap \
 	&& ./workflow install qwen-image-2.1 \
