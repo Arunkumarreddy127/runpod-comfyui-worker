@@ -115,7 +115,7 @@ WORKDIR /
 RUN uv pip install runpod requests websocket-client huggingface_hub \
   && git clone --depth 1 --branch develop https://github.com/Arunkumarreddy127/comfy-bootstrap.git /tmp/comfy-bootstrap \
   && cd /tmp/comfy-bootstrap \
-  && ./workflow install qwen-image-2.1 \
+  && ./workflow install minimax-h3 \
   && rm -rf /tmp/comfy-bootstrap
 
 # Add application code and scripts
