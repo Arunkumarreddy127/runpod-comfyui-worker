@@ -25,22 +25,30 @@ This document outlines the environment variables available for configuring the `
 | `WEBSOCKET_RECONNECT_DELAY_S`  | Delay in seconds between websocket reconnection attempts.                                                              | `3`     |
 | `WEBSOCKET_TRACE`              | Enable low-level websocket frame tracing for protocol debugging. Set to `true` only when diagnosing connection issues. | `false` |
 
-## AWS S3 Upload Configuration
+## S3-Compatible Upload Configuration
 
-Configure these variables **only** if you want the worker to upload generated images directly to an AWS S3 bucket. If these are not set, images will be returned as base64-encoded strings in the API response.
+Configure these variables to upload generated files to an AWS S3-compatible bucket such as Cloudflare R2. If they are not set, outputs are returned as base64-encoded strings in the API response.
 
 - **Prerequisites:**
   - An AWS S3 bucket in your desired region.
   - An AWS IAM user with programmatic access (Access Key ID and Secret Access Key).
   - Permissions attached to the IAM user allowing `s3:PutObject` (and potentially `s3:PutObjectAcl` if you need specific ACLs) on the target bucket.
 
-| Environment Variable       | Description                                                                                                                             | Example                                                    |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `BUCKET_ENDPOINT_URL`      | The full endpoint URL of your S3 bucket. **Must be set to enable S3 upload.**                                                           | `https://<your-bucket-name>.s3.<aws-region>.amazonaws.com` |
-| `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID associated with the IAM user that has write permissions to the bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `AKIAIOSFODNN7EXAMPLE`                                     |
-| `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key associated with the IAM user. Required if `BUCKET_ENDPOINT_URL` is set.                                      | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                 |
+| Environment Variable       | Description                                                                                                                             | Example                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `BUCKET_NAME`              | The bucket name.                                                                                                                        | `runpod-generations`                            |
+| `BUCKET_ENDPOINT_URL`      | The S3-compatible endpoint. For Cloudflare R2, use the account endpoint, not the dashboard URL.                                         | `https://<account-id>.r2.cloudflarestorage.com` |
+| `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID associated with the IAM user that has write permissions to the bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `AKIAIOSFODNN7EXAMPLE`                          |
+| `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key associated with the IAM user. Required if `BUCKET_ENDPOINT_URL` is set.                                      | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`      |
+| `BUCKET_REGION`            | S3 signing region.                                                                                                                      | `auto`                                          |
 
-**Note:** Upload uses the `runpod` Python library helper `rp_upload.upload_image`, which handles creating a unique path within the bucket based on the `job_id`.
+Generated videos are uploaded with this relative object key:
+
+```text
+videos/<job-id>/<filename>.mp4
+```
+
+The worker returns that key in `output.videos[].data` with `type: "r2_path"`. The dashboard URL is not an upload endpoint and must not be used as `BUCKET_ENDPOINT_URL`.
 
 ### Example S3 Response
 

@@ -14,6 +14,7 @@ import tempfile
 import socket
 import traceback
 import logging
+import boto3
 
 from network_volume import (
     is_network_volume_debug_enabled,
@@ -770,40 +771,65 @@ def get_history(prompt_id):
     return response.json()
 
 
-def get_image_data(filename, subfolder, image_type):
+def get_output_data(filename, subfolder, output_type):
     """
     Fetch image bytes from the ComfyUI /view endpoint.
 
     Args:
         filename (str): The filename of the image.
         subfolder (str): The subfolder where the image is stored.
-        image_type (str): The type of the image (e.g., 'output').
+        output_type (str): The type of the output (e.g., 'output').
 
     Returns:
         bytes: The raw image data, or None if an error occurs.
     """
     print(
-        f"worker-comfyui - Fetching image data: type={image_type}, subfolder={subfolder}, filename={filename}"
+        f"worker-comfyui - Fetching output data: type={output_type}, subfolder={subfolder}, filename={filename}"
     )
-    data = {"filename": filename, "subfolder": subfolder, "type": image_type}
+    data = {"filename": filename, "subfolder": subfolder, "type": output_type}
     url_values = urllib.parse.urlencode(data)
     try:
         # Use requests for consistency and timeout
         response = requests.get(f"http://{COMFY_HOST}/view?{url_values}", timeout=60)
         response.raise_for_status()
-        print(f"worker-comfyui - Successfully fetched image data for {filename}")
+        print(f"worker-comfyui - Successfully fetched output data for {filename}")
         return response.content
     except requests.Timeout:
-        print(f"worker-comfyui - Timeout fetching image data for {filename}")
+        print(f"worker-comfyui - Timeout fetching output data for {filename}")
         return None
     except requests.RequestException as e:
-        print(f"worker-comfyui - Error fetching image data for {filename}: {e}")
+        print(f"worker-comfyui - Error fetching output data for {filename}: {e}")
         return None
     except Exception as e:
         print(
-            f"worker-comfyui - Unexpected error fetching image data for {filename}: {e}"
+            f"worker-comfyui - Unexpected error fetching output data for {filename}: {e}"
         )
         return None
+
+
+def upload_video_to_bucket(file_path, job_id, filename):
+    """Upload a generated video to the configured S3-compatible bucket."""
+    bucket_name = os.environ.get("BUCKET_NAME")
+    endpoint_url = os.environ.get("BUCKET_ENDPOINT_URL")
+    access_key_id = os.environ.get("BUCKET_ACCESS_KEY_ID")
+    secret_access_key = os.environ.get("BUCKET_SECRET_ACCESS_KEY")
+
+    if not all((bucket_name, endpoint_url, access_key_id, secret_access_key)):
+        raise ValueError(
+            "BUCKET_NAME, BUCKET_ENDPOINT_URL, BUCKET_ACCESS_KEY_ID, and "
+            "BUCKET_SECRET_ACCESS_KEY are required for video uploads"
+        )
+
+    object_key = f"videos/{job_id}/{os.path.basename(filename)}"
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+        region_name=os.environ.get("BUCKET_REGION", "auto"),
+    )
+    s3_client.upload_file(file_path, bucket_name, object_key)
+    return object_key
 
 
 def handler(job):
@@ -867,6 +893,7 @@ def handler(job):
     client_id = str(uuid.uuid4())
     prompt_id = None
     output_data = []
+    video_output_data = []
     errors = []
 
     try:
@@ -1018,7 +1045,7 @@ def handler(job):
                         errors.append(warn_msg)
                         continue
 
-                    image_bytes = get_image_data(filename, subfolder, img_type)
+                    image_bytes = get_output_data(filename, subfolder, img_type)
 
                     if image_bytes:
                         file_extension = os.path.splitext(filename)[1] or ".png"
@@ -1084,16 +1111,52 @@ def handler(job):
                         error_msg = f"Failed to fetch image data for {filename} from /view endpoint."
                         errors.append(error_msg)
 
-            # Check for other output types
-            other_keys = [k for k in node_output.keys() if k != "images"]
-            if other_keys:
-                warn_msg = (
-                    f"Node {node_id} produced unhandled output keys: {other_keys}."
-                )
-                print(f"worker-comfyui - WARNING: {warn_msg}")
-                print(
-                    f"worker-comfyui - --> If this output is useful, please consider opening an issue on GitHub to discuss adding support."
-                )
+            for video_key in ("gifs", "videos"):
+                for video_info in node_output.get(video_key, []):
+                    filename = video_info.get("filename")
+                    subfolder = video_info.get("subfolder", "")
+                    video_type = video_info.get("type", "output")
+                    if not filename or video_type == "temp":
+                        continue
+
+                    video_bytes = get_output_data(filename, subfolder, video_type)
+                    if not video_bytes:
+                        errors.append(
+                            f"Failed to fetch video data for {filename} from /view endpoint."
+                        )
+                        continue
+
+                    file_extension = os.path.splitext(filename)[1] or ".mp4"
+                    if os.environ.get("BUCKET_ENDPOINT_URL"):
+                        try:
+                            with tempfile.NamedTemporaryFile(
+                                suffix=file_extension, delete=False
+                            ) as temp_file:
+                                temp_file.write(video_bytes)
+                                temp_file_path = temp_file.name
+                            video_path = upload_video_to_bucket(
+                                temp_file_path, job_id, filename
+                            )
+                            os.remove(temp_file_path)
+                            video_output_data.append(
+                                {
+                                    "filename": filename,
+                                    "type": "r2_path",
+                                    "data": video_path,
+                                }
+                            )
+                        except Exception as e:
+                            errors.append(f"Error uploading {filename} to S3: {e}")
+                            if "temp_file_path" in locals() and os.path.exists(temp_file_path):
+                                os.remove(temp_file_path)
+                    else:
+                        video_output_data.append(
+                            {
+                                "filename": filename,
+                                "type": "base64",
+                                "data": base64.b64encode(video_bytes).decode("utf-8"),
+                            }
+                        )
 
     except websocket.WebSocketException as e:
         print(f"worker-comfyui - WebSocket Error: {e}")
@@ -1121,24 +1184,30 @@ def handler(job):
     if output_data:
         final_result["images"] = output_data
 
+    if video_output_data:
+        final_result["videos"] = video_output_data
+
     if errors:
         final_result["errors"] = errors
         print(f"worker-comfyui - Job completed with errors/warnings: {errors}")
 
-    if not output_data and errors:
+    if not output_data and not video_output_data and errors:
         print(f"worker-comfyui - Job failed with no output images.")
         return {
             "error": "Job processing failed",
             "details": errors,
         }
-    elif not output_data and not errors:
+    elif not output_data and not video_output_data and not errors:
         print(
             f"worker-comfyui - Job completed successfully, but the workflow produced no images."
         )
         final_result["status"] = "success_no_images"
         final_result["images"] = []
 
-    print(f"worker-comfyui - Job completed. Returning {len(output_data)} image(s).")
+    print(
+        f"worker-comfyui - Job completed. Returning {len(output_data)} image(s) and "
+        f"{len(video_output_data)} video(s)."
+    )
     return final_result
 
 
