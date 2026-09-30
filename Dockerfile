@@ -111,7 +111,7 @@ ADD src/extra_model_paths.yaml ./
 # Go back to the root
 WORKDIR /
 
-# Install Python runtime dependencies for the handler
+# Install Python runtime dependencies for the handler for minimax-h3 workflow
 RUN uv pip install runpod requests websocket-client huggingface_hub \
   && git clone --depth 1 --branch develop https://github.com/Arunkumarreddy127/comfy-bootstrap.git /tmp/comfy-bootstrap \
   && cd /tmp/comfy-bootstrap \
