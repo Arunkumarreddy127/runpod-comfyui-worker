@@ -429,18 +429,32 @@ class TestHandlerPreflightOrdering(unittest.TestCase):
         self.assertEqual(mock_queue.call_args[0][0], workflow)
 
 
-class TestVideoOutputPersistence(unittest.TestCase):
+class TestOutputPersistence(unittest.TestCase):
     def test_persistence_root_is_comfyui_output_directory(self):
         self.assertEqual(
             handler.NETWORK_VOLUME_OUTPUT_DIR,
             "/runpod-volume/runpod-slim/ComfyUI/output",
         )
 
+    def test_saves_image_under_job_directory_with_safe_filename(self):
+        image_bytes = b"test-image-data"
+        with tempfile.TemporaryDirectory() as output_root:
+            with patch("handler.NETWORK_VOLUME_OUTPUT_DIR", output_root):
+                saved_path = handler.save_output_to_network_volume(
+                    image_bytes, "job-123", "nested/image.png"
+                )
+
+            self.assertEqual(
+                saved_path, os.path.join(output_root, "job-123", "image.png")
+            )
+            with open(saved_path, "rb") as saved_image:
+                self.assertEqual(saved_image.read(), image_bytes)
+
     def test_saves_video_under_job_directory_with_safe_filename(self):
         video_bytes = b"test-video-data"
         with tempfile.TemporaryDirectory() as output_root:
             with patch("handler.NETWORK_VOLUME_OUTPUT_DIR", output_root):
-                saved_path = handler.save_video_to_network_volume(
+                saved_path = handler.save_output_to_network_volume(
                     video_bytes, "job-123", "nested/video.mp4"
                 )
 

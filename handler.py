@@ -810,8 +810,8 @@ def get_output_data(filename, subfolder, output_type):
         return None
 
 
-def save_video_to_network_volume(video_bytes, job_id, filename):
-    """Persist a generated video under the mounted network volume."""
+def save_output_to_network_volume(output_bytes, job_id, filename):
+    """Persist a generated image or video under the mounted network volume."""
     safe_job_id = os.path.basename(str(job_id))
     safe_filename = os.path.basename(filename)
     if not safe_job_id or not safe_filename:
@@ -820,8 +820,8 @@ def save_video_to_network_volume(video_bytes, job_id, filename):
     output_dir = os.path.join(NETWORK_VOLUME_OUTPUT_DIR, safe_job_id)
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, safe_filename)
-    with open(output_path, "wb") as video_file:
-        video_file.write(video_bytes)
+    with open(output_path, "wb") as output_file:
+        output_file.write(output_bytes)
     return output_path
 
 
@@ -1073,6 +1073,16 @@ def handler(job):
                     image_bytes = get_output_data(filename, subfolder, img_type)
 
                     if image_bytes:
+                        network_volume_path = None
+                        try:
+                            network_volume_path = save_output_to_network_volume(
+                                image_bytes, job_id, filename
+                            )
+                        except Exception as e:
+                            errors.append(
+                                f"Error saving {filename} to the network volume: {e}"
+                            )
+
                         file_extension = os.path.splitext(filename)[1] or ".png"
 
                         if os.environ.get("BUCKET_ENDPOINT_URL"):
@@ -1098,12 +1108,25 @@ def handler(job):
                                         "filename": filename,
                                         "type": "s3_url",
                                         "data": s3_url,
+                                        **(
+                                            {"local_path": network_volume_path}
+                                            if network_volume_path
+                                            else {}
+                                        ),
                                     }
                                 )
                             except Exception as e:
                                 error_msg = f"Error uploading {filename} to S3: {e}"
                                 print(f"worker-comfyui - {error_msg}")
                                 errors.append(error_msg)
+                                if network_volume_path:
+                                    output_data.append(
+                                        {
+                                            "filename": filename,
+                                            "type": "network_volume_path",
+                                            "data": network_volume_path,
+                                        }
+                                    )
                                 if "temp_file_path" in locals() and os.path.exists(
                                     temp_file_path
                                 ):
@@ -1125,6 +1148,11 @@ def handler(job):
                                         "filename": filename,
                                         "type": "base64",
                                         "data": base64_image,
+                                        **(
+                                            {"local_path": network_volume_path}
+                                            if network_volume_path
+                                            else {}
+                                        ),
                                     }
                                 )
                                 print(f"worker-comfyui - Encoded {filename} as base64")
@@ -1153,7 +1181,7 @@ def handler(job):
 
                     network_volume_path = None
                     try:
-                        network_volume_path = save_video_to_network_volume(
+                        network_volume_path = save_output_to_network_volume(
                             video_bytes, job_id, filename
                         )
                     except Exception as e:
