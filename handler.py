@@ -21,7 +21,7 @@ from network_volume import (
     run_network_volume_diagnostics,
 )
 
-NETWORK_VOLUME_OUTPUT_DIR = "/runpod-volume/outputs"
+NETWORK_VOLUME_OUTPUT_DIR = "/runpod-volume/runpod-slim/ComfyUI/output"
 NETWORK_VOLUME_MODELS_DIR = "/runpod-volume/runpod-slim/ComfyUI/models"
 
 # ---------------------------------------------------------------------------

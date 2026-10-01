@@ -430,6 +430,12 @@ class TestHandlerPreflightOrdering(unittest.TestCase):
 
 
 class TestVideoOutputPersistence(unittest.TestCase):
+    def test_persistence_root_is_comfyui_output_directory(self):
+        self.assertEqual(
+            handler.NETWORK_VOLUME_OUTPUT_DIR,
+            "/runpod-volume/runpod-slim/ComfyUI/output",
+        )
+
     def test_saves_video_under_job_directory_with_safe_filename(self):
         video_bytes = b"test-video-data"
         with tempfile.TemporaryDirectory() as output_root:

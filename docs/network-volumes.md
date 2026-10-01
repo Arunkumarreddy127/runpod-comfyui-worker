@@ -17,6 +17,11 @@ For **Pods**:
 
 - Network volume root is mounted at: `/workspace`
 - ComfyUI model path: `/workspace/runpod-slim/ComfyUI/models/...`
+- ComfyUI output path: `/workspace/runpod-slim/ComfyUI/output/`
+
+For **serverless workers**, the equivalent output path is
+`/runpod-volume/runpod-slim/ComfyUI/output/`. Videos persisted by this worker
+are organized into per-job subdirectories beneath that path.
 
 If you use the S3-compatible API, the same paths map as:
 
