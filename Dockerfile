@@ -111,20 +111,18 @@ ADD src/extra_model_paths.yaml ./
 # Go back to the root
 WORKDIR /
 
-# Install Python runtime dependencies for the handler for minimax-h3 workflow
-RUN uv pip install runpod requests websocket-client huggingface_hub \
-  && git clone --depth 1 --branch develop https://github.com/Arunkumarreddy127/comfy-bootstrap.git /tmp/comfy-bootstrap \
-  && cd /tmp/comfy-bootstrap \
-  && ./workflow install minimax-h3 \
-  && rm -rf /tmp/comfy-bootstrap
+# Install Python runtime dependencies for the handler and custom node
+RUN uv pip install runpod requests websocket-client huggingface_hub
 
 # Add application code and scripts
 ADD src/start.sh src/network_volume.py handler.py test_input.json ./
 RUN chmod +x /start.sh
 
-# Add script to install custom nodes
+# Add script to install custom nodes. Models are stored on the attached
+# Network Volume and must not be downloaded during the image build.
 COPY scripts/comfy-node-install.sh /usr/local/bin/comfy-node-install
 RUN chmod +x /usr/local/bin/comfy-node-install
+RUN comfy-node-install comfyui-pixaroma
 
 # Prevent pip from asking for confirmation during uninstall steps in custom nodes
 ENV PIP_NO_INPUT=1

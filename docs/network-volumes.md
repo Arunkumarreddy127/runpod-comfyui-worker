@@ -37,8 +37,10 @@ Models must be placed in the following structure on your network volume:
     ├── clip/             # CLIP models (.safetensors, .pt)
     ├── clip_vision/      # CLIP Vision models
     ├── controlnet/       # ControlNet models (.safetensors, .pt)
+    ├── diffusion_models/ # Diffusion/UNet models (.safetensors, .ckpt)
     ├── embeddings/       # Textual inversion embeddings (.safetensors, .pt)
     ├── upscale_models/   # Upscaling models (.safetensors, .pt)
+    ├── text_encoders/    # CLIP/text encoder models (.safetensors, .bin)
     ├── unet/             # UNet models
     └── configs/          # Model configs (.yaml, .json)
 ```
@@ -51,17 +53,34 @@ Models must be placed in the following structure on your network volume:
 
 ComfyUI only recognizes files with specific extensions when scanning model directories.
 
-| Model Type     | Supported Extensions                        |
-| -------------- | ------------------------------------------- |
+| Model Type     | Supported Extensions                           |
+| -------------- | ---------------------------------------------- |
 | Checkpoints    | `.safetensors`, `.ckpt`, `.pt`, `.pth`, `.bin` |
-| LoRAs          | `.safetensors`, `.pt`                       |
-| VAE            | `.safetensors`, `.pt`, `.bin`               |
-| CLIP           | `.safetensors`, `.pt`, `.bin`               |
-| ControlNet     | `.safetensors`, `.pt`, `.pth`, `.bin`       |
-| Embeddings     | `.safetensors`, `.pt`, `.bin`               |
-| Upscale Models | `.safetensors`, `.pt`, `.pth`               |
+| LoRAs          | `.safetensors`, `.pt`                          |
+| VAE            | `.safetensors`, `.pt`, `.bin`                  |
+| CLIP           | `.safetensors`, `.pt`, `.bin`                  |
+| ControlNet     | `.safetensors`, `.pt`, `.pth`, `.bin`          |
+| Embeddings     | `.safetensors`, `.pt`, `.bin`                  |
+| Upscale Models | `.safetensors`, `.pt`, `.pth`                  |
 
 Files with other extensions (for example `.txt`, `.zip`) are **ignored** by ComfyUI’s model discovery.
+
+## MiniMax H3 model files
+
+The MiniMax H3 worker image does not download these files during `docker build`.
+Copy them to the following paths on the Network Volume:
+
+| Network Volume path                                                        | Download URL                                                                                                                               | Approximate size |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------: |
+| `models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors` | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) |          21.0 GB |
+| `models/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors`        | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors)        |          15.7 GB |
+| `models/vae/minimax_h3_video_vae_fp16.safetensors`                         | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors)                         |           5.2 GB |
+| `models/vae/minimax_h3_audio_vae_fp32.safetensors`                         | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors)                         |          0.61 GB |
+
+The total storage requirement is approximately **42.5 GB**. Populate the volume
+using a temporary Pod, `wget`/`curl`, or the Network Volume S3-compatible API,
+then attach that volume to the serverless endpoint under **Advanced > Select
+Network Volume**. The volume must be in the same region as the endpoint.
 
 ## Common Issues
 
@@ -92,7 +111,6 @@ Enable this when:
 
 1. Go to your serverless **Endpoint → Manage → Edit**.
 2. Under **Environment Variables**, add:
-
    - `NETWORK_VOLUME_DEBUG=true`
 
 3. Save and wait for workers to restart (or scale to zero and back up).
@@ -143,5 +161,3 @@ Once you have resolved your issue, disable diagnostics to keep logs clean:
 - Set `NETWORK_VOLUME_DEBUG=false`
 
 This returns the worker to normal behavior without extra log noise.
-
-
