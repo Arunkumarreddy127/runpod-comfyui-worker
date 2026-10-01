@@ -4,6 +4,7 @@ import sys
 import os
 import json
 import base64
+import tempfile
 
 # handler.py lives at the repository root; it imports network_volume as a
 # sibling module (both are ADDed to / in the Docker image), which lives in
@@ -422,6 +423,47 @@ class TestHandlerPreflightOrdering(unittest.TestCase):
         self.assertNotIn("error", result)
         mock_queue.assert_called_once()
         self.assertEqual(mock_queue.call_args[0][0], workflow)
+
+
+class TestVideoOutputPersistence(unittest.TestCase):
+    def test_saves_video_under_job_directory_with_safe_filename(self):
+        video_bytes = b"test-video-data"
+        with tempfile.TemporaryDirectory() as output_root:
+            with patch("handler.NETWORK_VOLUME_OUTPUT_DIR", output_root):
+                saved_path = handler.save_video_to_network_volume(
+                    video_bytes, "job-123", "nested/video.mp4"
+                )
+
+            self.assertEqual(
+                saved_path, os.path.join(output_root, "job-123", "video.mp4")
+            )
+            with open(saved_path, "rb") as saved_video:
+                self.assertEqual(saved_video.read(), video_bytes)
+
+    def test_logs_bucket_destination_without_credentials(self):
+        environment = {
+            "BUCKET_NAME": "test-bucket",
+            "BUCKET_ENDPOINT_URL": "https://account.r2.example.com",
+            "BUCKET_REGION": "auto",
+            "BUCKET_ACCESS_KEY_ID": "test-access-key",
+            "BUCKET_SECRET_ACCESS_KEY": "test-secret-key",
+        }
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch("handler.boto3.client") as mock_client,
+            self.assertLogs("handler", level="INFO") as captured,
+        ):
+            handler.upload_video_to_bucket("/tmp/video.mp4", "job-123", "video.mp4")
+
+        log_output = "\n".join(captured.output)
+        self.assertIn("test-bucket", log_output)
+        self.assertIn("https://account.r2.example.com", log_output)
+        self.assertIn("region='auto'", log_output)
+        self.assertNotIn("test-access-key", log_output)
+        self.assertNotIn("test-secret-key", log_output)
+        mock_client.return_value.upload_file.assert_called_once_with(
+            "/tmp/video.mp4", "test-bucket", "videos/job-123/video.mp4"
+        )
 
 
 if __name__ == "__main__":

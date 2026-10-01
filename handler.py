@@ -21,6 +21,8 @@ from network_volume import (
     run_network_volume_diagnostics,
 )
 
+NETWORK_VOLUME_OUTPUT_DIR = "/runpod-volume/outputs"
+
 # ---------------------------------------------------------------------------
 # Logging setup
 # ---------------------------------------------------------------------------
@@ -807,12 +809,34 @@ def get_output_data(filename, subfolder, output_type):
         return None
 
 
+def save_video_to_network_volume(video_bytes, job_id, filename):
+    """Persist a generated video under the mounted network volume."""
+    safe_job_id = os.path.basename(str(job_id))
+    safe_filename = os.path.basename(filename)
+    if not safe_job_id or not safe_filename:
+        raise ValueError("Video job ID and filename must not be empty")
+
+    output_dir = os.path.join(NETWORK_VOLUME_OUTPUT_DIR, safe_job_id)
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, safe_filename)
+    with open(output_path, "wb") as video_file:
+        video_file.write(video_bytes)
+    return output_path
+
+
 def upload_video_to_bucket(file_path, job_id, filename):
     """Upload a generated video to the configured S3-compatible bucket."""
     bucket_name = os.environ.get("BUCKET_NAME")
     endpoint_url = os.environ.get("BUCKET_ENDPOINT_URL")
     access_key_id = os.environ.get("BUCKET_ACCESS_KEY_ID")
     secret_access_key = os.environ.get("BUCKET_SECRET_ACCESS_KEY")
+    bucket_region = os.environ.get("BUCKET_REGION", "auto")
+    logger.info(
+        "Video upload destination: bucket_name=%r endpoint_url=%r region=%r",
+        bucket_name,
+        endpoint_url,
+        bucket_region,
+    )
 
     if not all((bucket_name, endpoint_url, access_key_id, secret_access_key)):
         raise ValueError(
@@ -826,7 +850,7 @@ def upload_video_to_bucket(file_path, job_id, filename):
         endpoint_url=endpoint_url,
         aws_access_key_id=access_key_id,
         aws_secret_access_key=secret_access_key,
-        region_name=os.environ.get("BUCKET_REGION", "auto"),
+        region_name=bucket_region,
     )
     s3_client.upload_file(file_path, bucket_name, object_key)
     return object_key
@@ -1126,6 +1150,16 @@ def handler(job):
                         )
                         continue
 
+                    network_volume_path = None
+                    try:
+                        network_volume_path = save_video_to_network_volume(
+                            video_bytes, job_id, filename
+                        )
+                    except Exception as e:
+                        errors.append(
+                            f"Error saving {filename} to the network volume: {e}"
+                        )
+
                     file_extension = os.path.splitext(filename)[1] or ".mp4"
                     if os.environ.get("BUCKET_ENDPOINT_URL"):
                         try:
@@ -1143,10 +1177,23 @@ def handler(job):
                                     "filename": filename,
                                     "type": "r2_path",
                                     "data": video_path,
+                                    **(
+                                        {"local_path": network_volume_path}
+                                        if network_volume_path
+                                        else {}
+                                    ),
                                 }
                             )
                         except Exception as e:
                             errors.append(f"Error uploading {filename} to S3: {e}")
+                            if network_volume_path:
+                                video_output_data.append(
+                                    {
+                                        "filename": filename,
+                                        "type": "network_volume_path",
+                                        "data": network_volume_path,
+                                    }
+                                )
                             if "temp_file_path" in locals() and os.path.exists(temp_file_path):
                                 os.remove(temp_file_path)
                     else:
@@ -1155,6 +1202,11 @@ def handler(job):
                                 "filename": filename,
                                 "type": "base64",
                                 "data": base64.b64encode(video_bytes).decode("utf-8"),
+                                **(
+                                    {"local_path": network_volume_path}
+                                    if network_volume_path
+                                    else {}
+                                ),
                             }
                         )
 
