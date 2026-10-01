@@ -22,6 +22,7 @@ from network_volume import (
 )
 
 NETWORK_VOLUME_OUTPUT_DIR = "/runpod-volume/outputs"
+NETWORK_VOLUME_MODELS_DIR = "/runpod-volume/runpod-slim/ComfyUI/models"
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -84,12 +85,12 @@ MODEL_LOADER_NODES = {
 # src/extra_model_paths.yaml — model types use their corresponding ComfyUI
 # directories on the attached Network Volume.
 MODEL_TYPE_VOLUME_DIRS = {
-    "checkpoints": "/runpod-volume/models/checkpoints/",
-    "loras": "/runpod-volume/models/loras/",
-    "vae": "/runpod-volume/models/vae/",
-    "text_encoders": "/runpod-volume/models/text_encoders/",
-    "diffusion_models": "/runpod-volume/models/diffusion_models/",
-    "upscale_models": "/runpod-volume/models/upscale_models/",
+    "checkpoints": f"{NETWORK_VOLUME_MODELS_DIR}/checkpoints/",
+    "loras": f"{NETWORK_VOLUME_MODELS_DIR}/loras/",
+    "vae": f"{NETWORK_VOLUME_MODELS_DIR}/vae/",
+    "text_encoders": f"{NETWORK_VOLUME_MODELS_DIR}/text_encoders/",
+    "diffusion_models": f"{NETWORK_VOLUME_MODELS_DIR}/diffusion_models/",
+    "upscale_models": f"{NETWORK_VOLUME_MODELS_DIR}/upscale_models/",
 }
 
 # Placeholder some clients send when a UI model dropdown was never resolved
@@ -498,7 +499,7 @@ def _check_model_reference(object_info, node_id, class_type, field, value, model
     (or cannot be judged from /object_info).
     """
     volume_dir = MODEL_TYPE_VOLUME_DIRS.get(
-        model_type, f"/runpod-volume/models/{model_type}/"
+        model_type, f"{NETWORK_VOLUME_MODELS_DIR}/{model_type}/"
     )
 
     if value == MODEL_LIST_PLACEHOLDER:

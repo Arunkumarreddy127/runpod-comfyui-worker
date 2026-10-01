@@ -67,7 +67,8 @@ def run_network_volume_diagnostics():
 
     # Check directory structure
     print("\n[3] Checking directory structure...")
-    models_dir = os.path.join(runpod_volume, "models")
+    comfyui_volume_root = os.path.join(runpod_volume, "runpod-slim", "ComfyUI")
+    models_dir = os.path.join(comfyui_volume_root, "models")
     if os.path.isdir(models_dir):
         print(f"    ✓ FOUND: {models_dir}")
     else:
@@ -133,14 +134,16 @@ def print_expected_structure():
     """Print the expected directory structure for the network volume."""
     print("\n    Expected directory structure:")
     print("    /runpod-volume/")
-    print("    └── models/")
-    print("        ├── checkpoints/    <- Put your .safetensors/.ckpt models here")
-    print("        ├── loras/          <- Put your LoRA files here")
-    print("        ├── vae/            <- Put your VAE files here")
-    print("        ├── clip/           <- Put your CLIP models here")
-    print("        ├── controlnet/     <- Put your ControlNet models here")
-    print("        ├── embeddings/     <- Put your embedding files here")
-    print("        └── upscale_models/ <- Put your upscale models here")
+    print("    └── runpod-slim/")
+    print("        └── ComfyUI/")
+    print("            └── models/")
+    print("                ├── checkpoints/    <- Put your .safetensors/.ckpt models here")
+    print("                ├── loras/          <- Put your LoRA files here")
+    print("                ├── vae/            <- Put your VAE files here")
+    print("                ├── clip/           <- Put your CLIP models here")
+    print("                ├── controlnet/     <- Put your ControlNet models here")
+    print("                ├── embeddings/     <- Put your embedding files here")
+    print("                └── upscale_models/ <- Put your upscale models here")
 
 
 def format_size(size_bytes):

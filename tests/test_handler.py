@@ -257,7 +257,9 @@ class TestValidateWorkflowModels(unittest.TestCase):
         self.assertIsNotNone(error)
         self.assertIn("does_not_exist.safetensors", error)
         self.assertIn("checkpoints", error)
-        self.assertIn("/runpod-volume/models/checkpoints/", error)
+        self.assertIn(
+            "/runpod-volume/runpod-slim/ComfyUI/models/checkpoints/", error
+        )
         self.assertIn("sd_xl_base_1.0.safetensors", error)  # lists available
 
     def test_multiple_missing_models_reported_together(self):
@@ -281,11 +283,13 @@ class TestValidateWorkflowModels(unittest.TestCase):
         error = self._validate(workflow)
         self.assertIsNotNone(error)
         self.assertIn("missing_lora.safetensors", error)
-        self.assertIn("/runpod-volume/models/loras/", error)
+        self.assertIn("/runpod-volume/runpod-slim/ComfyUI/models/loras/", error)
         self.assertIn("missing_vae.safetensors", error)
-        self.assertIn("/runpod-volume/models/vae/", error)
+        self.assertIn("/runpod-volume/runpod-slim/ComfyUI/models/vae/", error)
         self.assertIn("missing_clip.safetensors", error)
-        self.assertIn("/runpod-volume/models/clip/", error)
+        self.assertIn(
+            "/runpod-volume/runpod-slim/ComfyUI/models/text_encoders/", error
+        )
         # the valid second clip must not be reported
         self.assertNotIn("'t5xxl_fp16.safetensors' not found", error)
 

@@ -93,12 +93,12 @@ Using a Network Volume is primarily useful if you want to manage **models** sepa
     - Follow the [RunPod Network Volumes guide](https://docs.runpod.io/pods/storage/create-network-volumes) to create a volume in the same region as your endpoint.
 2.  **Populate the Volume with Models**:
     - Use one of the methods described in the RunPod guide (e.g., temporary Pod + `wget`, direct upload, or the S3-compatible API) to place your model files into the correct ComfyUI directory structure **within the volume**.
-    - For **serverless endpoints**, the network volume is mounted at `/runpod-volume`, and ComfyUI expects models under `/runpod-volume/models/...`. See [Network Volumes & Model Paths](network-volumes.md) for the exact structure and debugging tips.
+      - For **serverless endpoints**, the network volume is mounted at `/runpod-volume`, and ComfyUI expects models under `/runpod-volume/runpod-slim/ComfyUI/models/...`. On a temporary Pod, use the matching `/workspace/runpod-slim/ComfyUI/models/...` path. See [Network Volumes & Model Paths](network-volumes.md) for details.
       ```bash
       # Example structure inside the Network Volume (serverless worker view):
-      # /runpod-volume/models/checkpoints/your_model.safetensors
-      # /runpod-volume/models/loras/your_lora.pt
-      # /runpod-volume/models/vae/your_vae.safetensors
+            # /runpod-volume/runpod-slim/ComfyUI/models/checkpoints/your_model.safetensors
+            # /runpod-volume/runpod-slim/ComfyUI/models/loras/your_lora.pt
+            # /runpod-volume/runpod-slim/ComfyUI/models/vae/your_vae.safetensors
       ```
     - **Important:** Ensure models are placed in the correct subdirectories (e.g., checkpoints in `models/checkpoints`, LoRAs in `models/loras`). If models are not detected, enable `NETWORK_VOLUME_DEBUG` as described in [Network Volumes & Model Paths](network-volumes.md).
 3.  **Configure Your Endpoint**:
@@ -108,5 +108,5 @@ Using a Network Volume is primarily useful if you want to manage **models** sepa
 
 > [!NOTE]
 >
-> - When a Network Volume is correctly attached, ComfyUI running inside the worker container will automatically detect and load models from the standard directories (`/runpod-volume/models/...`) within that volume (for serverless workers). For directory mapping details and troubleshooting, see [Network Volumes & Model Paths](network-volumes.md).
+> - When a Network Volume is correctly attached, ComfyUI running inside the worker container will automatically detect and load models from `/runpod-volume/runpod-slim/ComfyUI/models/...` (for serverless workers). For directory mapping details and troubleshooting, see [Network Volumes & Model Paths](network-volumes.md).
 > - This method is **not suitable for installing custom nodes**; use the Custom Dockerfile method for that.
