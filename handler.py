@@ -832,11 +832,16 @@ def upload_video_to_bucket(file_path, job_id, filename):
     access_key_id = os.environ.get("BUCKET_ACCESS_KEY_ID")
     secret_access_key = os.environ.get("BUCKET_SECRET_ACCESS_KEY")
     bucket_region = os.environ.get("BUCKET_REGION", "auto")
-    logger.info(
-        "Video upload destination: bucket_name=%r endpoint_url=%r region=%r",
-        bucket_name,
-        endpoint_url,
-        bucket_region,
+    masked_access_key_id = (
+        f"{'*' * max(0, len(access_key_id) - 4)}{access_key_id[-4:]}"
+        if access_key_id
+        else None
+    )
+    print(
+        f"Video upload destination: bucket_name={bucket_name!r} "
+        f"endpoint_url={endpoint_url!r} region={bucket_region!r} "
+        f"access_key_id={masked_access_key_id!r} "
+        f"secret_access_key_configured={bool(secret_access_key)}"
     )
 
     if not all((bucket_name, endpoint_url, access_key_id, secret_access_key)):
