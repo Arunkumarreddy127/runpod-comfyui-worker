@@ -43,9 +43,10 @@
    - Retrieve image bytes once from ComfyUI's `/view` endpoint.
    - Save a local copy when enabled.
    - Always base64-encode the bytes for the API response.
-   - When `BUCKET_ENDPOINT_URL` is configured, upload a temporary copy with `rp_upload.upload_image(job_id, temp_file_path)`.
-   - Add the returned upload URL as `r2_url` on the corresponding image response item.
-   - Clean up temporary upload files in all success and failure paths.
+
+- When `BUCKET_ENDPOINT_URL` is configured, upload a temporary copy with `rp_upload.upload_image(f"images/{job_id}", temp_file_path)` so objects are stored under `images/<job_id>/`.
+- Add the returned upload URL as `r2_url` on the corresponding image response item.
+- Clean up temporary upload files in all success and failure paths.
 
 3. **Document configuration**
    - Document `SAVE_OUTPUTS_TO_NETWORK_VOLUME` and its `false` default in `docs/configuration.md`.
