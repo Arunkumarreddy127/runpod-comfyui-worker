@@ -23,6 +23,7 @@ from network_volume import (
 
 NETWORK_VOLUME_OUTPUT_DIR = "/runpod-volume/runpod-slim/ComfyUI/output"
 NETWORK_VOLUME_MODELS_DIR = "/runpod-volume/runpod-slim/ComfyUI/models"
+VIDEO_FILE_EXTENSIONS = {".avi", ".gif", ".mkv", ".mov", ".mp4", ".webm"}
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -1089,6 +1090,62 @@ def handler(job):
                             )
 
                         file_extension = os.path.splitext(filename)[1] or ".png"
+
+                        if file_extension.lower() in VIDEO_FILE_EXTENSIONS:
+                            if os.environ.get("BUCKET_ENDPOINT_URL"):
+                                temp_file_path = None
+                                try:
+                                    with tempfile.NamedTemporaryFile(
+                                        suffix=file_extension, delete=False
+                                    ) as temp_file:
+                                        temp_file.write(image_bytes)
+                                        temp_file_path = temp_file.name
+                                    video_path = upload_video_to_bucket(
+                                        temp_file_path, job_id, filename
+                                    )
+                                    video_output_data.append(
+                                        {
+                                            "filename": filename,
+                                            "type": "r2_path",
+                                            "data": video_path,
+                                            **(
+                                                {"local_path": network_volume_path}
+                                                if network_volume_path
+                                                else {}
+                                            ),
+                                        }
+                                    )
+                                except Exception as e:
+                                    errors.append(
+                                        f"Error uploading {filename} to S3: {e}"
+                                    )
+                                    if network_volume_path:
+                                        video_output_data.append(
+                                            {
+                                                "filename": filename,
+                                                "type": "network_volume_path",
+                                                "data": network_volume_path,
+                                            }
+                                        )
+                                finally:
+                                    if temp_file_path and os.path.exists(temp_file_path):
+                                        os.remove(temp_file_path)
+                            else:
+                                video_output_data.append(
+                                    {
+                                        "filename": filename,
+                                        "type": "base64",
+                                        "data": base64.b64encode(image_bytes).decode(
+                                            "utf-8"
+                                        ),
+                                        **(
+                                            {"local_path": network_volume_path}
+                                            if network_volume_path
+                                            else {}
+                                        ),
+                                    }
+                                )
+                            continue
 
                         if os.environ.get("BUCKET_ENDPOINT_URL"):
                             try:
