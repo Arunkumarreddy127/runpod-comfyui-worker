@@ -14,6 +14,7 @@ import tempfile
 import socket
 import traceback
 import logging
+from pathlib import Path
 
 from network_volume import (
     is_network_volume_debug_enabled,
@@ -55,6 +56,7 @@ if os.environ.get("WEBSOCKET_TRACE", "false").lower() == "true":
 
 # Host where ComfyUI is running
 COMFY_HOST = "127.0.0.1:8188"
+NETWORK_VOLUME_OUTPUT_DIR = "/runpod-volume/runpod-slim/ComfyUI/output"
 # Enforce a clean state after each job is done
 # see https://docs.runpod.io/docs/handler-additional-controls#refresh-worker
 REFRESH_WORKER = os.environ.get("REFRESH_WORKER", "false").lower() == "true"
@@ -806,6 +808,26 @@ def get_image_data(filename, subfolder, image_type):
         return None
 
 
+def _save_image_to_network_volume(job_id, filename, subfolder, image_bytes):
+    """Save generated image bytes below the job-specific network-volume folder."""
+    output_root = Path(NETWORK_VOLUME_OUTPUT_DIR) / str(job_id)
+    relative_path = Path(subfolder or "") / filename
+    output_path = (output_root / relative_path).resolve()
+
+    try:
+        output_path.relative_to(output_root.resolve())
+    except ValueError as exc:
+        raise ValueError(f"unsafe output path for {filename}") from exc
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(image_bytes)
+    return output_path
+
+
+def _save_outputs_to_network_volume_enabled():
+    return os.environ.get("SAVE_OUTPUTS_TO_NETWORK_VOLUME", "false").lower() == "true"
+
+
 def handler(job):
     """
     Handles a job using ComfyUI via websockets for status and image retrieval.
@@ -1022,8 +1044,29 @@ def handler(job):
 
                     if image_bytes:
                         file_extension = os.path.splitext(filename)[1] or ".png"
+                        image_result = {
+                            "filename": filename,
+                            "type": "base64",
+                            "data": base64.b64encode(image_bytes).decode("utf-8"),
+                        }
+
+                        if _save_outputs_to_network_volume_enabled():
+                            try:
+                                saved_path = _save_image_to_network_volume(
+                                    job_id, filename, subfolder, image_bytes
+                                )
+                                print(
+                                    f"worker-comfyui - Saved {filename} to network volume: {saved_path}"
+                                )
+                            except Exception as e:
+                                error_msg = (
+                                    f"Error saving {filename} to network volume: {e}"
+                                )
+                                print(f"worker-comfyui - {error_msg}")
+                                errors.append(error_msg)
 
                         if os.environ.get("BUCKET_ENDPOINT_URL"):
+                            temp_file_path = None
                             try:
                                 with tempfile.NamedTemporaryFile(
                                     suffix=file_extension, delete=False
@@ -1036,50 +1079,24 @@ def handler(job):
 
                                 print(f"worker-comfyui - Uploading {filename} to S3...")
                                 s3_url = rp_upload.upload_image(job_id, temp_file_path)
-                                os.remove(temp_file_path)  # Clean up temp file
                                 print(
                                     f"worker-comfyui - Uploaded {filename} to S3: {s3_url}"
                                 )
-                                # Append dictionary with filename and URL
-                                output_data.append(
-                                    {
-                                        "filename": filename,
-                                        "type": "s3_url",
-                                        "data": s3_url,
-                                    }
-                                )
+                                image_result["r2_url"] = s3_url
                             except Exception as e:
                                 error_msg = f"Error uploading {filename} to S3: {e}"
                                 print(f"worker-comfyui - {error_msg}")
                                 errors.append(error_msg)
-                                if "temp_file_path" in locals() and os.path.exists(
-                                    temp_file_path
-                                ):
+                            finally:
+                                if temp_file_path and os.path.exists(temp_file_path):
                                     try:
                                         os.remove(temp_file_path)
                                     except OSError as rm_err:
                                         print(
                                             f"worker-comfyui - Error removing temp file {temp_file_path}: {rm_err}"
                                         )
-                        else:
-                            # Return as base64 string
-                            try:
-                                base64_image = base64.b64encode(image_bytes).decode(
-                                    "utf-8"
-                                )
-                                # Append dictionary with filename and base64 data
-                                output_data.append(
-                                    {
-                                        "filename": filename,
-                                        "type": "base64",
-                                        "data": base64_image,
-                                    }
-                                )
-                                print(f"worker-comfyui - Encoded {filename} as base64")
-                            except Exception as e:
-                                error_msg = f"Error encoding {filename} to base64: {e}"
-                                print(f"worker-comfyui - {error_msg}")
-                                errors.append(error_msg)
+                        output_data.append(image_result)
+                        print(f"worker-comfyui - Encoded {filename} as base64")
                     else:
                         error_msg = f"Failed to fetch image data for {filename} from /view endpoint."
                         errors.append(error_msg)

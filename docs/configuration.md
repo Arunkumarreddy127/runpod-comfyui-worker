@@ -12,10 +12,11 @@ This document outlines the environment variables available for configuring the `
 
 ## Logging Configuration
 
-| Environment Variable   | Description                                                                                                                                                      | Default |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `COMFY_LOG_LEVEL`      | Controls ComfyUI's internal logging verbosity. Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Use `DEBUG` for troubleshooting, `INFO` for production. | `DEBUG` |
-| `NETWORK_VOLUME_DEBUG` | Enable detailed network volume diagnostics in worker logs. Useful for debugging model path issues. See [Network Volumes & Model Paths](network-volumes.md).      | `false` |
+| Environment Variable             | Description                                                                                                                                                      | Default |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `COMFY_LOG_LEVEL`                | Controls ComfyUI's internal logging verbosity. Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Use `DEBUG` for troubleshooting, `INFO` for production. | `DEBUG` |
+| `NETWORK_VOLUME_DEBUG`           | Enable detailed network volume diagnostics in worker logs. Useful for debugging model path issues. See [Network Volumes & Model Paths](network-volumes.md).      | `false` |
+| `SAVE_OUTPUTS_TO_NETWORK_VOLUME` | Save generated images under `/runpod-volume/runpod-slim/ComfyUI/output/<job_id>/`. Requires a network volume mounted at `/runpod-volume`.                        | `false` |
 
 ## Debugging Configuration
 
@@ -25,24 +26,23 @@ This document outlines the environment variables available for configuring the `
 | `WEBSOCKET_RECONNECT_DELAY_S`  | Delay in seconds between websocket reconnection attempts.                                                              | `3`     |
 | `WEBSOCKET_TRACE`              | Enable low-level websocket frame tracing for protocol debugging. Set to `true` only when diagnosing connection issues. | `false` |
 
-## AWS S3 Upload Configuration
+## S3-Compatible Upload Configuration
 
-Configure these variables **only** if you want the worker to upload generated images directly to an AWS S3 bucket. If these are not set, images will be returned as base64-encoded strings in the API response.
+Configure these variables if you want the worker to upload generated images to an S3-compatible bucket such as AWS S3 or Cloudflare R2. Images are always returned as base64-encoded strings; successful uploads add an `r2_url` field to the corresponding image response.
 
 - **Prerequisites:**
-  - An AWS S3 bucket in your desired region.
-  - An AWS IAM user with programmatic access (Access Key ID and Secret Access Key).
-  - Permissions attached to the IAM user allowing `s3:PutObject` (and potentially `s3:PutObjectAcl` if you need specific ACLs) on the target bucket.
+  - An AWS S3 bucket or Cloudflare R2 bucket.
+  - A bucket access key ID and secret with permission to upload objects.
 
-| Environment Variable       | Description                                                                                                                             | Example                                                    |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `BUCKET_ENDPOINT_URL`      | The full endpoint URL of your S3 bucket. **Must be set to enable S3 upload.**                                                           | `https://<your-bucket-name>.s3.<aws-region>.amazonaws.com` |
-| `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID associated with the IAM user that has write permissions to the bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `AKIAIOSFODNN7EXAMPLE`                                     |
-| `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key associated with the IAM user. Required if `BUCKET_ENDPOINT_URL` is set.                                      | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                 |
+| Environment Variable       | Description                                                                                                                             | Example                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `BUCKET_ENDPOINT_URL`      | The full S3-compatible endpoint URL. For Cloudflare R2, use the account's R2 S3 API endpoint. **Must be set to enable upload.**         | `https://<account-id>.r2.cloudflarestorage.com` |
+| `BUCKET_ACCESS_KEY_ID`     | Your AWS access key ID associated with the IAM user that has write permissions to the bucket. Required if `BUCKET_ENDPOINT_URL` is set. | `AKIAIOSFODNN7EXAMPLE`                          |
+| `BUCKET_SECRET_ACCESS_KEY` | Your AWS secret access key associated with the IAM user. Required if `BUCKET_ENDPOINT_URL` is set.                                      | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`      |
 
 **Note:** Upload uses the `runpod` Python library helper `rp_upload.upload_image`, which handles creating a unique path within the bucket based on the `job_id`.
 
-### Example S3 Response
+### Example Upload Response
 
 If the S3 environment variables (`BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`) are correctly configured, a successful job response will look similar to this:
 
@@ -54,8 +54,9 @@ If the S3 environment variables (`BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, 
     "images": [
       {
         "filename": "ComfyUI_00001_.png",
-        "type": "s3_url",
-        "data": "https://your-bucket-name.s3.your-region.amazonaws.com/sync-uuid-string/ComfyUI_00001_.png"
+        "type": "base64",
+        "data": "iVBORw0KGgoAAAANSUhEUg...",
+        "r2_url": "https://your-bucket-or-r2-endpoint/sync-uuid-string/ComfyUI_00001_.png"
       }
       // Additional images generated by the workflow would appear here
     ]
@@ -66,4 +67,4 @@ If the S3 environment variables (`BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, 
 }
 ```
 
-The `data` field contains the presigned URL to the uploaded image file in your S3 bucket. The path usually includes the job ID.
+The `data` field always contains base64 image data. When upload is configured and succeeds, `r2_url` contains the uploaded image URL. The path usually includes the job ID.
