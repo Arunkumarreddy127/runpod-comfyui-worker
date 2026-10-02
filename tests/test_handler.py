@@ -423,6 +423,92 @@ class TestHandlerPreflightOrdering(unittest.TestCase):
         mock_queue.assert_called_once()
         self.assertEqual(mock_queue.call_args[0][0], workflow)
 
+    def test_image_upload_uses_configured_bucket_name(self):
+        ws = MagicMock()
+        ws.recv.return_value = json.dumps(
+            {"type": "executing", "data": {"node": None, "prompt_id": "abc"}}
+        )
+        history = {
+            "abc": {
+                "outputs": {
+                    "9": {
+                        "images": [
+                            {"filename": "result.png", "subfolder": "", "type": "output"}
+                        ]
+                    }
+                }
+            }
+        }
+        job = {"id": "job-2", "input": {"workflow": {"1": {}}}}
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "BUCKET_ENDPOINT_URL": "https://r2.example.com",
+                    "BUCKET_NAME": "test-bucket",
+                },
+            ),
+            patch("handler.check_server", return_value=True),
+            patch("handler.validate_workflow_models", return_value=None),
+            patch("handler.websocket.WebSocket", return_value=ws),
+            patch("handler.queue_workflow", return_value={"prompt_id": "abc"}),
+            patch("handler.get_history", return_value=history),
+            patch("handler.get_image_data", return_value=b"image-bytes"),
+            patch("handler.rp_upload.upload_image", return_value="https://r2/result.png") as upload_image,
+        ):
+            result = handler.handler(job)
+
+        upload_image.assert_called_once()
+        self.assertEqual(upload_image.call_args.args[0], "images/job-2")
+        self.assertEqual(upload_image.call_args.kwargs["bucket_name"], "test-bucket")
+        self.assertEqual(result["images"][0]["r2_url"], "https://r2/result.png")
+
+    def test_image_upload_failure_keeps_base64_output(self):
+        ws = MagicMock()
+        ws.recv.return_value = json.dumps(
+            {"type": "executing", "data": {"node": None, "prompt_id": "abc"}}
+        )
+        history = {
+            "abc": {
+                "outputs": {
+                    "9": {
+                        "images": [
+                            {"filename": "result.png", "subfolder": "", "type": "output"}
+                        ]
+                    }
+                }
+            }
+        }
+        job = {"id": "job-2", "input": {"workflow": {"1": {}}}}
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "BUCKET_ENDPOINT_URL": "https://r2.example.com",
+                    "BUCKET_NAME": "test-bucket",
+                },
+            ),
+            patch("handler.check_server", return_value=True),
+            patch("handler.validate_workflow_models", return_value=None),
+            patch("handler.websocket.WebSocket", return_value=ws),
+            patch("handler.queue_workflow", return_value={"prompt_id": "abc"}),
+            patch("handler.get_history", return_value=history),
+            patch("handler.get_image_data", return_value=b"image-bytes"),
+            patch(
+                "handler.rp_upload.upload_image",
+                side_effect=RuntimeError("NoSuchBucket"),
+            ),
+        ):
+            result = handler.handler(job)
+
+        self.assertEqual(result["images"][0]["type"], "base64")
+        self.assertEqual(
+            result["images"][0]["data"], base64.b64encode(b"image-bytes").decode()
+        )
+        self.assertIn("NoSuchBucket", result["errors"][0])
+
 
 if __name__ == "__main__":
     unittest.main()
