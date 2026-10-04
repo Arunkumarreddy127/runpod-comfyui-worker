@@ -61,6 +61,15 @@ RUN if [ -n "${CUDA_VERSION_FOR_COMFY}" ]; then \
       /usr/bin/yes | comfy --workspace /comfyui install --version "${COMFYUI_VERSION}" --nvidia; \
     fi
 
+# Install custom nodes before dependency mirroring and the startup smoke test
+# so their imports are included in both validation steps.
+COPY scripts/comfy-node-install.sh /usr/local/bin/comfy-node-install
+RUN chmod +x /usr/local/bin/comfy-node-install \
+    && comfy-node-install comfyui-pixaroma
+
+# Prevent pip from asking for confirmation during uninstall steps in custom nodes
+ENV PIP_NO_INPUT=1
+
 # Upgrade PyTorch if needed (for newer CUDA versions)
 RUN if [ "$ENABLE_PYTORCH_UPGRADE" = "true" ]; then \
       uv pip install --force-reinstall torch torchvision torchaudio --index-url ${PYTORCH_INDEX_URL}; \
@@ -117,15 +126,6 @@ RUN uv pip install runpod requests websocket-client huggingface_hub
 # Add application code and scripts
 ADD src/start.sh src/network_volume.py handler.py test_input.json ./
 RUN chmod +x /start.sh
-
-# Add script to install custom nodes. Models are stored on the attached
-# Network Volume and must not be downloaded during the image build.
-COPY scripts/comfy-node-install.sh /usr/local/bin/comfy-node-install
-RUN chmod +x /usr/local/bin/comfy-node-install
-RUN comfy-node-install comfyui-pixaroma
-
-# Prevent pip from asking for confirmation during uninstall steps in custom nodes
-ENV PIP_NO_INPUT=1
 
 # Copy helper script to switch Manager network mode at container start
 COPY scripts/comfy-manager-set-mode.sh /usr/local/bin/comfy-manager-set-mode
