@@ -61,11 +61,11 @@ RUN if [ -n "${CUDA_VERSION_FOR_COMFY}" ]; then \
       /usr/bin/yes | comfy --workspace /comfyui install --version "${COMFYUI_VERSION}" --nvidia; \
     fi
 
-# Install custom nodes before dependency mirroring and the startup smoke test
-# so their imports are included in both validation steps.
-COPY scripts/comfy-node-install.sh /usr/local/bin/comfy-node-install
-RUN chmod +x /usr/local/bin/comfy-node-install \
-    && comfy-node-install comfyui-pixaroma
+# Install Pixaroma directly into ComfyUI's custom-node directory. Using git
+# here avoids registry/workspace resolution and ensures ComfyUI loads the node.
+RUN git clone --depth 1 https://github.com/pixaroma/ComfyUI-Pixaroma.git \
+      /comfyui/custom_nodes/ComfyUI-Pixaroma \
+    && test -f /comfyui/custom_nodes/ComfyUI-Pixaroma/nodes/node_label.py
 
 # Prevent pip from asking for confirmation during uninstall steps in custom nodes
 ENV PIP_NO_INPUT=1
